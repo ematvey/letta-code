@@ -2218,6 +2218,15 @@ export function App({
           }
           continue;
         }
+        // Assistant and reasoning lines stay in the live area so late-arriving
+        // text from intervening otid transitions (which prematurely mark them
+        // as finished) can still update them. Committing to Static would freeze
+        // a truncated version, which is what happens on fast responses where
+        // tool calls or events arrive mid-stream and trigger handleOtidTransition.
+        if (ln.kind === "assistant" || ln.kind === "reasoning") {
+          continue;
+        }
+
         if ("phase" in ln && ln.phase === "finished") {
           if (shouldSkipCommittedToolCall(ln)) {
             deferredCommits.delete(id);
@@ -4726,6 +4735,12 @@ export function App({
     return lines.filter((ln) => {
       if (!("phase" in ln)) return false;
       if (emittedIdsRef.current.has(ln.id)) return false;
+      // Assistant and reasoning lines always show in the live area.
+      // They are never committed to Static (keeps them mutable when late
+      // text arrives after an intervening otid transition marks them finished).
+      if (ln.kind === "assistant" || ln.kind === "reasoning") {
+        return true;
+      }
       if (ln.kind === "command" || ln.kind === "bash_command") {
         return ln.phase === "running";
       }
@@ -4749,8 +4764,9 @@ export function App({
           return false;
         return ln.phase === "running";
       }
-      if (!tokenStreamingEnabled && ln.phase === "streaming") return false;
-      return ln.phase === "streaming";
+      const lnAny = ln as { phase?: string };
+      if (!tokenStreamingEnabled && lnAny.phase === "streaming") return false;
+      return lnAny.phase === "streaming";
     });
   }, [
     lines,
