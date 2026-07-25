@@ -211,6 +211,23 @@ export function resolvePendingApprovalResolver(
   return true;
 }
 
+export function bufferEarlyApprovalResponse(
+  runtime: ConversationRuntime,
+  response: ApprovalResponseBody,
+): boolean {
+  const requestId = response.request_id;
+  if (
+    typeof requestId !== "string" ||
+    requestId.length === 0 ||
+    runtime.cancelRequested ||
+    !runtime.isProcessing
+  ) {
+    return false;
+  }
+  runtime.earlyApprovalResponses.set(requestId, response);
+  return true;
+}
+
 export function rejectPendingApprovalResolvers(
   runtime: ConversationRuntime,
   reason: string,
@@ -219,6 +236,7 @@ export function rejectPendingApprovalResolvers(
     pending.reject(new Error(reason));
   }
   runtime.pendingApprovalResolvers.clear();
+  runtime.earlyApprovalResponses.clear();
   for (const [requestId, runtimeKey] of runtime.listener
     .approvalRuntimeKeyByRequestId) {
     if (runtimeKey === runtime.key) {
@@ -256,6 +274,12 @@ export function requestApprovalOverWS(
 
   if (isInterrupted()) {
     return Promise.reject(new Error("Cancelled by user"));
+  }
+
+  const earlyResponse = runtime.earlyApprovalResponses.get(requestId);
+  if (earlyResponse) {
+    runtime.earlyApprovalResponses.delete(requestId);
+    return Promise.resolve(earlyResponse);
   }
 
   return new Promise<ApprovalResponseBody>((resolve, reject) => {

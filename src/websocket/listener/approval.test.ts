@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import WebSocket from "ws";
 import type { ApprovalResponseBody, ControlRequest } from "@/types/protocol_v2";
 import {
+  bufferEarlyApprovalResponse,
   rejectPendingApprovalResolvers,
   requestApprovalOverWS,
   resolvePendingApprovalResolver,
@@ -167,6 +168,43 @@ describe("listener approval lifecycle", () => {
 
     rejectPendingApprovalResolvers(runtime, "cleanup");
     await expect(pending).rejects.toThrow("cleanup");
+  });
+
+  test("an approval response arriving before resolver registration is consumed once", async () => {
+    const runtime = createScopedRuntime();
+    const socket = new MockSocket();
+    const turnLease = beginApprovalWait(runtime);
+    const response = makeSuccessResponse("perm-call-early");
+
+    expect(bufferEarlyApprovalResponse(runtime, response)).toBe(true);
+    expect(runtime.earlyApprovalResponses.get(response.request_id)).toEqual(
+      response,
+    );
+
+    await expect(
+      requestApprovalOverWS(
+        runtime,
+        socket,
+        turnLease,
+        response.request_id,
+        makeControlRequest(response.request_id),
+      ),
+    ).resolves.toEqual(response);
+    expect(runtime.earlyApprovalResponses.size).toBe(0);
+    expect(runtime.pendingApprovalResolvers.size).toBe(0);
+    expect(socket.sentPayloads).toEqual([]);
+  });
+
+  test("runtime cleanup discards an early approval before a replacement turn", () => {
+    const runtime = createScopedRuntime();
+    beginApprovalWait(runtime);
+    const response = makeSuccessResponse("perm-call-stale");
+
+    expect(bufferEarlyApprovalResponse(runtime, response)).toBe(true);
+    clearConversationRuntimeState(runtime);
+
+    expect(runtime.earlyApprovalResponses.size).toBe(0);
+    expect(bufferEarlyApprovalResponse(runtime, response)).toBe(false);
   });
 
   test("conversation cleanup rejects approvals and resets ownership atomically", async () => {

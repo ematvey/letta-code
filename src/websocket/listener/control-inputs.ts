@@ -12,6 +12,7 @@ import type {
 } from "@/types/protocol_v2";
 import { debugLog, isDebugEnabled } from "@/utils/debug";
 import {
+  bufferEarlyApprovalResponse,
   rejectPendingApprovalResolvers,
   resolvePendingApprovalResolver,
 } from "./approval";
@@ -253,7 +254,7 @@ export async function handleApprovalResponseInput(
     return true;
   }
 
-  return false;
+  return bufferEarlyApprovalResponse(targetRuntime, params.response);
 }
 
 export async function handleChangeDeviceStateInput(

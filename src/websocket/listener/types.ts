@@ -167,6 +167,7 @@ export type ConversationRuntime = {
   turnLifecycle: TurnLifecycle;
   messageQueue: Promise<void>;
   pendingApprovalResolvers: Map<string, PendingApprovalResolver>;
+  earlyApprovalResponses: Map<string, ApprovalResponseBody>;
   recoveredApprovalState: RecoveredApprovalState | null;
   readonly lastStopReason: StopReasonType | null;
   lastTerminalLoopErrorMessage: string | null;

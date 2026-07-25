@@ -298,6 +298,7 @@ export function shouldProcessInboundMessageDirectly(
     runtime.queuedMessagesByItemId.size > 0 ||
     runtime.turnLifecycle.kind !== "idle" ||
     runtime.pendingApprovalResolvers.size > 0 ||
+    runtime.earlyApprovalResponses.size > 0 ||
     runtime.pendingApprovalBatchByToolCallId.size > 0 ||
     runtime.recoveredApprovalState !== null ||
     runtime.pendingInterruptedResults !== null ||

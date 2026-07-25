@@ -829,6 +829,43 @@ describe("app-server client", () => {
     await expect(turn).rejects.toThrow("No API key for provider");
   });
 
+  test("runTurn returns max_tokens_exceeded for client continuation", async () => {
+    const { client, control, stream } = createFakeClient();
+    control.open();
+    stream.open();
+    await client.connect();
+
+    const runtime = { agent_id: "agent-1", conversation_id: "conv-1" };
+    const turn = client.runTurn({
+      runtime,
+      payload: {
+        kind: "create_message",
+        messages: [{ role: "user", content: "continue the analysis" }],
+      },
+    });
+
+    stream.receive({
+      type: "stream_delta",
+      runtime,
+      event_seq: 1,
+      emitted_at: "2026-06-11T00:00:00.000Z",
+      idempotency_key: "stream-1",
+      delta: {
+        type: "message",
+        message_type: "stop_reason",
+        run_id: "run-1",
+        stop_reason: "max_tokens_exceeded",
+      },
+    });
+
+    expect(await turn).toMatchObject({
+      runtime,
+      stopReason: "max_tokens_exceeded",
+      runIds: ["run-1"],
+      completedBy: "stop_reason",
+    });
+  });
+
   test("supports ergonomic request construction", async () => {
     const { client, control, stream } = createFakeClient();
     control.open();

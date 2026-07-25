@@ -443,7 +443,11 @@ async function handleIncomingMessageInner(
       if (finishIfInterrupted(runId || runtime.activeRunId)) {
         break;
       }
-      if (stopReason === "requires_approval" || stopReason === "end_turn") {
+      if (
+        stopReason === "requires_approval" ||
+        stopReason === "end_turn" ||
+        stopReason === "max_tokens_exceeded"
+      ) {
         await richDraftStreamer?.flushPending();
       }
       if (finishIfInterrupted(runId || runtime.activeRunId)) {
@@ -480,6 +484,11 @@ async function handleIncomingMessageInner(
           conversationId,
         });
 
+        break;
+      }
+
+      if (stopReason === "max_tokens_exceeded") {
+        finishTurn({ stopReason, agentId, conversationId });
         break;
       }
 

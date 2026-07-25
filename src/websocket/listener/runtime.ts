@@ -162,6 +162,7 @@ export function evictConversationRuntimeIfIdle(
     runtime.queuePumpScheduled ||
     runtime.pendingTurns > 0 ||
     runtime.pendingApprovalResolvers.size > 0 ||
+    runtime.earlyApprovalResponses.size > 0 ||
     runtime.pendingApprovalBatchByToolCallId.size > 0 ||
     runtime.recoveredApprovalState !== null ||
     runtime.pendingInterruptedResults !== null ||
@@ -263,6 +264,7 @@ export function createConversationRuntime(
     turnLifecycle,
     messageQueue: Promise.resolve(),
     pendingApprovalResolvers: new Map(),
+    earlyApprovalResponses: new Map(),
     recoveredApprovalState: null,
     get lastStopReason() {
       return turnLifecycle.lastStopReason;
@@ -361,6 +363,7 @@ export function clearConversationRuntimeState(
     conversationId: runtime.conversationId,
   });
   runtime.pendingApprovalBatchByToolCallId.clear();
+  runtime.earlyApprovalResponses.clear();
   runtime.pendingInterruptedResults = null;
   runtime.pendingInterruptedContext = null;
   runtime.pendingInterruptedToolCallIds = null;
