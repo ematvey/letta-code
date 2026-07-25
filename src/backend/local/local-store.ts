@@ -3179,11 +3179,6 @@ export class LocalStore {
       encodePathSegment(key),
     );
     mkdirSync(conversationDir, { recursive: true });
-    writeFileSync(
-      join(conversationDir, "conversation.json"),
-      `${JSON.stringify(conversation, null, 2)}\n`,
-    );
-    this.recordConversationRecordMtime(key, conversationDir);
     const messagesPath = transcriptMessagesPath(conversationDir);
     let metadata = this.transcriptMetadataRecord(key, conversationDir);
     const manifestPath = transcriptManifestPath(conversationDir);
@@ -3208,6 +3203,11 @@ export class LocalStore {
       messageFormat,
       options,
     );
+    writeFileSync(
+      join(conversationDir, "conversation.json"),
+      `${JSON.stringify(conversation, null, 2)}\n`,
+    );
+    this.recordConversationRecordMtime(key, conversationDir);
     this.persistCompiledSystemPrompt(conversationId, agentId);
   }
 

@@ -5,6 +5,7 @@ import type {
   Run,
 } from "@letta-ai/letta-client/resources/agents/messages";
 import type { Conversation } from "@letta-ai/letta-client/resources/conversations/conversations";
+import { createConversationMutationStream } from "@/agent/conversation-mutation-stream";
 import { mapModelHandleToLlmConfigPatch } from "@/agent/model-handles";
 import type {
   Backend,
@@ -355,14 +356,23 @@ export class HeadlessBackend implements Backend {
     conversationId: string,
     body: ConversationMessageCreateBody,
   ) {
-    return this.executeConversationTurn(conversationId, body);
+    const agentId =
+      body.agent_id ?? this.store.resolveAgentIdForConversation(conversationId);
+    return createConversationMutationStream(agentId, conversationId, () =>
+      this.executeConversationTurn(conversationId, body),
+    );
   }
 
   async streamConversationMessages(
     conversationId: string,
     body: ConversationMessageStreamBody,
   ) {
-    return this.executeConversationTurn(conversationId, body);
+    const agentId =
+      body?.agent_id ??
+      this.store.resolveAgentIdForConversation(conversationId);
+    return createConversationMutationStream(agentId, conversationId, () =>
+      this.executeConversationTurn(conversationId, body),
+    );
   }
 
   async cancelConversation(...args: Parameters<Backend["cancelConversation"]>) {

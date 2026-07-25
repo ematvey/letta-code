@@ -1,3 +1,4 @@
+import { withConversationMutationLease } from "@/agent/conversation-mutation-lease";
 import { getScopedMemoryFilesystemRoot } from "@/agent/memory-filesystem";
 import {
   buildReflectionMemoryScope,
@@ -431,9 +432,14 @@ export async function finalizeReflectionMemoryWorktreeLaunch(params: {
   completionSuccess: boolean;
   completionMessage: string;
 }> {
-  const integration = await finalizeReflectionMemoryWorktree(params.worktree, {
-    shouldMerge: params.subagentSuccess,
-  });
+  const integration = await withConversationMutationLease(
+    params.agentId,
+    params.conversationId,
+    async () =>
+      finalizeReflectionMemoryWorktree(params.worktree, {
+        shouldMerge: params.subagentSuccess,
+      }),
+  );
   const completionSuccess =
     params.subagentSuccess &&
     reflectionIntegrationConsumesTranscript(integration);
