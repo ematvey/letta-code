@@ -596,7 +596,7 @@ describe("app-server client", () => {
           messages: [{ role: "user", content: "hello" }],
         },
       },
-      { allowLoopStatusFallback: true },
+      { allowLoopStatusFallback: true, loopStatusFallbackGraceMs: 1 },
     );
 
     stream.receive({
@@ -693,7 +693,7 @@ describe("app-server client", () => {
           messages: [{ role: "user", content: "hello" }],
         },
       },
-      { allowLoopStatusFallback: true },
+      { allowLoopStatusFallback: true, loopStatusFallbackGraceMs: 1 },
     );
 
     stream.receive({
@@ -721,6 +721,76 @@ describe("app-server client", () => {
       stopReason: null,
       runIds: ["run-1"],
       completedBy: "loop_status_waiting_fallback",
+    });
+  });
+
+  test("runTurn cancels guarded idle fallback when a continuation run starts", async () => {
+    const { client, control, stream } = createFakeClient();
+    control.open();
+    stream.open();
+    await client.connect();
+
+    const runtime = { agent_id: "agent-1", conversation_id: "conv-1" };
+    const turn = client.runTurn(
+      {
+        runtime,
+        payload: {
+          kind: "create_message",
+          messages: [{ role: "user", content: "hello" }],
+        },
+      },
+      { allowLoopStatusFallback: true, loopStatusFallbackGraceMs: 10 },
+    );
+
+    stream.receive({
+      type: "update_loop_status",
+      runtime,
+      event_seq: 1,
+      emitted_at: "2026-06-11T00:00:00.000Z",
+      idempotency_key: "loop-1",
+      loop_status: {
+        status: "PROCESSING_API_RESPONSE",
+        active_run_ids: ["run-1"],
+      },
+    });
+    stream.receive({
+      type: "update_loop_status",
+      runtime,
+      event_seq: 2,
+      emitted_at: "2026-06-11T00:00:00.001Z",
+      idempotency_key: "loop-2",
+      loop_status: { status: "WAITING_ON_INPUT", active_run_ids: [] },
+    });
+    stream.receive({
+      type: "update_loop_status",
+      runtime,
+      event_seq: 3,
+      emitted_at: "2026-06-11T00:00:00.002Z",
+      idempotency_key: "loop-3",
+      loop_status: {
+        status: "PROCESSING_API_RESPONSE",
+        active_run_ids: ["run-2"],
+      },
+    });
+    stream.receive({
+      type: "stream_delta",
+      runtime,
+      event_seq: 4,
+      emitted_at: "2026-06-11T00:00:00.003Z",
+      idempotency_key: "stream-1",
+      delta: {
+        type: "message",
+        message_type: "stop_reason",
+        run_id: "run-2",
+        stop_reason: "end_turn",
+      },
+    });
+
+    expect(await turn).toMatchObject({
+      runtime,
+      stopReason: "end_turn",
+      runIds: ["run-1", "run-2"],
+      completedBy: "stop_reason",
     });
   });
 

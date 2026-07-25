@@ -120,11 +120,22 @@ export interface AppServerTurnResult {
 export interface AppServerRunTurnOptions {
   timeoutMs?: number;
   /**
+   * Keep observing the same turn while a client approval response is being
+   * resolved instead of treating the transient approval wait as terminal.
+   */
+  waitForApprovalResolution?: boolean;
+  /**
    * Prefer explicit stream terminal events. This fallback is only used after
    * the client has seen stream/run evidence for this runtime, never from idle
    * loop status alone.
    */
   allowLoopStatusFallback?: boolean;
+  /**
+   * Delay guarded idle-loop completion long enough for an approval/tool
+   * continuation run to start. Any subsequent stream or active-run evidence
+   * cancels the pending fallback.
+   */
+  loopStatusFallbackGraceMs?: number;
 }
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
@@ -589,6 +600,7 @@ export class AppServerClient {
     const runIds = new Set<string>();
     let observedTurnEvidence = false;
     let observedRequiresApprovalStop = false;
+    let loopStatusFallbackTimer: ReturnType<typeof setTimeout> | null = null;
 
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
@@ -602,8 +614,18 @@ export class AppServerClient {
 
       const cleanup = () => {
         clearTimeout(timeout);
+        if (loopStatusFallbackTimer !== null) {
+          clearTimeout(loopStatusFallbackTimer);
+          loopStatusFallbackTimer = null;
+        }
         this.activeTurnRuntimes.delete(runtimeKey);
         offMessage();
+      };
+
+      const cancelLoopStatusFallback = () => {
+        if (loopStatusFallbackTimer === null) return;
+        clearTimeout(loopStatusFallbackTimer);
+        loopStatusFallbackTimer = null;
       };
 
       const finish = (
@@ -638,6 +660,7 @@ export class AppServerClient {
         }
 
         if (message.type === "stream_delta") {
+          cancelLoopStatusFallback();
           observedTurnEvidence = true;
           const runId = streamDeltaRunId(message);
           if (runId) runIds.add(runId);
@@ -670,6 +693,7 @@ export class AppServerClient {
             return;
           }
           for (const runId of message.loop_status.active_run_ids) {
+            cancelLoopStatusFallback();
             observedTurnEvidence = true;
             runIds.add(runId);
           }
@@ -677,6 +701,9 @@ export class AppServerClient {
             hadTurnEvidenceBeforeLoopStatus &&
             isWaitingOnApprovalLoopStatus(message)
           ) {
+            if (options.waitForApprovalResolution === true) {
+              return;
+            }
             finish(
               "loop_status_waiting_on_approval",
               message,
@@ -689,7 +716,11 @@ export class AppServerClient {
             hadTurnEvidenceBeforeLoopStatus &&
             isWaitingLoopStatus(message)
           ) {
-            finish("loop_status_waiting_fallback", message, null);
+            cancelLoopStatusFallback();
+            loopStatusFallbackTimer = setTimeout(() => {
+              loopStatusFallbackTimer = null;
+              finish("loop_status_waiting_fallback", message, null);
+            }, options.loopStatusFallbackGraceMs ?? 1_000);
           }
         }
       });
