@@ -23,12 +23,38 @@ import type { LocalMessage } from "./local-message";
 
 // Matches Pi's `estimateTokens` image cost: 4800 chars / 4 = 1200 tokens.
 const IMAGE_TOKEN_ESTIMATE = 1200;
+// Model catalogs can advertise an output limit almost as large as the entire
+// context window. Reserving at most 10% keeps useful history while ensuring the
+// next turn can still generate enough output to compact or finish its work.
+const LOCAL_MAX_OUTPUT_HEADROOM_FRACTION = 0.1;
 
 export interface LocalContextTokenEstimate {
   tokens: number;
   usageTokens: number;
   trailingTokens: number;
   lastUsageIndex: number | null;
+}
+
+export function localContextHasOutputHeadroom(
+  contextTokens: number,
+  contextWindow: number,
+  maxOutputTokens: number,
+): boolean {
+  if (
+    !Number.isFinite(contextTokens) ||
+    !Number.isFinite(contextWindow) ||
+    !Number.isFinite(maxOutputTokens) ||
+    contextTokens < 0 ||
+    contextWindow <= 0 ||
+    maxOutputTokens <= 0
+  ) {
+    return true;
+  }
+  const reservedOutputTokens = Math.min(
+    maxOutputTokens,
+    Math.floor(contextWindow * LOCAL_MAX_OUTPUT_HEADROOM_FRACTION),
+  );
+  return contextTokens < contextWindow - reservedOutputTokens;
 }
 
 function positiveUsageNumber(value: unknown): number | undefined {

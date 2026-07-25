@@ -1,4 +1,3 @@
-import type { Usage } from "@earendil-works/pi-ai";
 import {
   DeterministicPongExecutor,
   type HeadlessTurnExecutor,
@@ -11,6 +10,7 @@ import {
 import type {
   LlmEndInfo,
   LlmStartInfo,
+  ProviderContextUsage,
   ProviderTurnInput,
 } from "@/backend/dev/provider-turn-executor";
 import { ProviderTurnExecutor } from "@/backend/dev/provider-turn-executor";
@@ -44,7 +44,7 @@ export function createLocalExecutor(
   ) => ReturnType<LocalCompactionCallback>,
   onContextUsage?: (
     input: ProviderTurnInput,
-    usage: Usage,
+    contextUsage: ProviderContextUsage,
   ) => ReturnType<LocalCompactionCallback>,
   onLlmStart?: (info: LlmStartInfo) => void | Promise<void>,
   onLlmEnd?: (info: LlmEndInfo) => void | Promise<void>,

@@ -7,7 +7,6 @@ import type {
   SimpleStreamOptions,
   Tool,
   TSchema,
-  Usage,
 } from "@earendil-works/pi-ai";
 import { isContextOverflow, Type } from "@earendil-works/pi-ai";
 
@@ -43,6 +42,7 @@ import type {
   LlmEndErrorInfo,
   LlmEndInfo,
   LlmStartInfo,
+  ProviderContextUsage,
   ProviderStreamAdapter,
   ProviderStreamEvent,
   ProviderTurnInput,
@@ -87,7 +87,7 @@ export interface PiStreamAdapterOptions {
   } | null>;
   onContextUsage?: (
     input: ProviderTurnInput,
-    usage: Usage,
+    contextUsage: ProviderContextUsage,
   ) => Promise<{
     uiMessages: LocalMessage[];
     summary: string;
@@ -670,7 +670,11 @@ export class PiStreamAdapter implements ProviderStreamAdapter {
         throw new PiProviderError(finalMessage);
       }
       if (this.onContextUsage) {
-        const compaction = await this.onContextUsage(input, finalMessage.usage);
+        const compaction = await this.onContextUsage(input, {
+          usage: finalMessage.usage,
+          contextWindow: resolved.model.contextWindow,
+          maxOutputTokens: resolved.model.maxTokens,
+        });
         if (compaction) {
           yield* this.emitCompactionChunks(compaction, "context_window_limit");
         }

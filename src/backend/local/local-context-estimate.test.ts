@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   estimateLocalContextTokens,
   estimateLocalMessagesTokens,
+  localContextHasOutputHeadroom,
 } from "./local-context-estimate";
 import { emptyLocalUsage, type LocalMessage } from "./local-message";
 
@@ -10,6 +11,16 @@ function usage(totalTokens: number) {
 }
 
 describe("local context estimate", () => {
+  test("reserves output capacity before the context window is exhausted", () => {
+    expect(localContextHasOutputHeadroom(160_000, 180_000, 32_768)).toBe(true);
+    expect(localContextHasOutputHeadroom(177_287, 180_000, 32_768)).toBe(false);
+  });
+
+  test("uses a smaller model output limit when it is below the reserve cap", () => {
+    expect(localContextHasOutputHeadroom(175_000, 180_000, 4_096)).toBe(true);
+    expect(localContextHasOutputHeadroom(176_000, 180_000, 4_096)).toBe(false);
+  });
+
   test("counts semantic content instead of serialized image payloads", () => {
     const hugeBase64 = "a".repeat(1_000_000);
     const messages: LocalMessage[] = [

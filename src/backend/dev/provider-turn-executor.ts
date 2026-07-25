@@ -74,6 +74,12 @@ export interface LlmEndInfo {
   error?: LlmEndErrorInfo;
 }
 
+export interface ProviderContextUsage {
+  usage: Usage;
+  contextWindow: number;
+  maxOutputTokens: number;
+}
+
 export type ProviderStreamEvent =
   | { type: "provider-part"; part: ProviderStreamPart }
   | { type: "local-message"; message: LocalMessage }

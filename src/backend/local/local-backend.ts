@@ -1,4 +1,3 @@
-import type { Usage } from "@earendil-works/pi-ai";
 import { GIT_MEMORY_ENABLED_TAG } from "@/agent/agent-tags";
 import {
   type InitializeLocalMemoryRepoFile,
@@ -22,6 +21,7 @@ import type { PiStreamFunction } from "@/backend/dev/pi-stream-adapter";
 import type {
   LlmEndInfo,
   LlmStartInfo,
+  ProviderContextUsage,
   ProviderTurnInput,
 } from "@/backend/dev/provider-turn-executor";
 import {
@@ -43,6 +43,7 @@ import {
   summarizeLocalMessagesAll,
   summarizeLocalMessagesSlidingWindow,
 } from "./compaction";
+import { localContextHasOutputHeadroom } from "./local-context-estimate";
 import {
   createLocalExecutor,
   type LocalBackendExecutionMode,
@@ -589,25 +590,24 @@ export class LocalBackend extends HeadlessBackend {
 
   private async compactAfterContextUsage(
     input: ProviderTurnInput,
-    usage: Usage,
+    contextUsage: ProviderContextUsage,
   ): Promise<{
     uiMessages: LocalMessage[];
     summary: string;
     stats?: LocalCompactionStats;
   } | null> {
     const contextTokens =
-      contextTokensFromUsage(usage) ?? estimateProviderContextTokens(input);
-    const contextWindow = this.effectiveContextWindow(
-      input.conversationId,
-      input.agentId,
-    );
+      contextTokensFromUsage(contextUsage.usage) ??
+      estimateProviderContextTokens(input);
+    if (contextTokens === undefined) return null;
     if (
-      contextTokens === undefined ||
-      contextWindow === undefined ||
-      contextTokens <= contextWindow
-    ) {
+      localContextHasOutputHeadroom(
+        contextTokens,
+        contextUsage.contextWindow,
+        contextUsage.maxOutputTokens,
+      )
+    )
       return null;
-    }
 
     const result = await this.compactLocalConversation(
       input.conversationId,
