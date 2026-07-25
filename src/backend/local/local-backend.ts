@@ -53,6 +53,7 @@ import {
   localModelSettingsForHandle,
   resolveLocalModelConfig,
 } from "./local-model-config";
+import { dispatchLocalBackendNotification } from "./local-notification";
 import type {
   LocalAgentRecord,
   LocalStoreOptions,
@@ -324,41 +325,33 @@ export class LocalBackend extends HeadlessBackend {
     this.modEventHooks = hooks;
   }
 
-  private async emitCompactStart(
+  private emitCompactStart(
     conversationId: string,
     agentId: string,
     trigger: string,
-  ): Promise<void> {
-    const hook = this.modEventHooks?.onCompactStart;
-    if (!hook) return;
-    try {
-      await hook({ agentId, conversationId, trigger });
-    } catch {
-      // Mod event hooks must never break compaction.
-    }
+  ): void {
+    dispatchLocalBackendNotification(this.modEventHooks?.onCompactStart, {
+      agentId,
+      conversationId,
+      trigger,
+    });
   }
 
-  private async emitCompactEnd(
+  private emitCompactEnd(
     conversationId: string,
     agentId: string,
     trigger: string,
     stats: LocalCompactionStats,
-  ): Promise<void> {
-    const hook = this.modEventHooks?.onCompactEnd;
-    if (!hook) return;
-    try {
-      await hook({
-        agentId,
-        conversationId,
-        trigger,
-        messagesBefore: stats.messages_count_before ?? 0,
-        messagesAfter: stats.messages_count_after ?? 0,
-        contextTokensBefore: stats.context_tokens_before ?? 0,
-        contextTokensAfter: stats.context_tokens_after ?? 0,
-      });
-    } catch {
-      // Mod event hooks must never break compaction.
-    }
+  ): void {
+    dispatchLocalBackendNotification(this.modEventHooks?.onCompactEnd, {
+      agentId,
+      conversationId,
+      trigger,
+      messagesBefore: stats.messages_count_before ?? 0,
+      messagesAfter: stats.messages_count_after ?? 0,
+      contextTokensBefore: stats.context_tokens_before ?? 0,
+      contextTokensAfter: stats.context_tokens_after ?? 0,
+    });
   }
 
   private async emitLlmStart(info: LlmStartInfo): Promise<void> {
@@ -767,14 +760,14 @@ export class LocalBackend extends HeadlessBackend {
     summary: string;
     stats: LocalCompactionStats;
   }> {
-    await this.emitCompactStart(conversationId, agentId, trigger);
+    this.emitCompactStart(conversationId, agentId, trigger);
     const result = await this.compactLocalConversationInner(
       conversationId,
       agentId,
       trigger,
       body,
     );
-    await this.emitCompactEnd(conversationId, agentId, trigger, result.stats);
+    this.emitCompactEnd(conversationId, agentId, trigger, result.stats);
     return result;
   }
 
